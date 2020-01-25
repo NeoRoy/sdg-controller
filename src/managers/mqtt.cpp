@@ -1,5 +1,7 @@
 #include "mqtt.h"
 
+#include "library/library.h"
+
 namespace bernd_box {
 
 Mqtt::Mqtt(WiFiClient& wifi_client)
@@ -42,6 +44,8 @@ int Mqtt::connect(const uint max_attempts) {
     Serial.println(F("\tConnected!"));
     error = !client_.subscribe(
         (String(F("action/")) + client_id_ + F("/+")).c_str(), 1);
+    error |= !client_.subscribe(
+        (String(F("object/")) + client_id_ + F("/+")).c_str(), 1);
   } else {
     Serial.print(F("\tFailed to connect after "));
     Serial.print(max_attempts);
@@ -203,6 +207,9 @@ void Mqtt::removeAction(const String& name) { callbacks_.erase(name.c_str()); }
 void Mqtt::handleCallback(char* topic, uint8_t* message, unsigned int length) {
   // Check if the prefix is "action"
   // action/a48b109f-975f-42e2-9962-a6fb752a1b6e/pump -> action
+  
+  int object_topic_rv = strncmp(topic, BB_MQTT_TOPIC_OBJECT_PREFIX,
+                                strlen(BB_MQTT_TOPIC_OBJECT_PREFIX));
   int action_topic_rv = strncmp(topic, BB_MQTT_TOPIC_ACTION_PREFIX,
                                 strlen(BB_MQTT_TOPIC_ACTION_PREFIX));
   if (action_topic_rv == 0) {
@@ -218,6 +225,9 @@ void Mqtt::handleCallback(char* topic, uint8_t* message, unsigned int length) {
       sendError("mqtt::handleCallback",
                 String(F("No registered callback for action: ")) + action);
     }
+    return;
+  } else if (object_topic_rv == 0) {
+    library::Library::getLibrary(*this)->handleCallback(topic, message, length);
     return;
   }
 
